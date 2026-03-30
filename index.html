@@ -295,7 +295,8 @@
     }
 
     .editor-field input,
-    .editor-field select {
+    .editor-field select,
+    .editor-field textarea {
       width: 100%;
       padding: 11px 13px;
       border-radius: 12px;
@@ -303,6 +304,12 @@
       background: var(--surface);
       color: var(--ink);
       outline: none;
+    }
+
+    .editor-field textarea {
+      min-height: 110px;
+      resize: vertical;
+      font: inherit;
     }
 
     .editor-actions {
@@ -337,6 +344,28 @@
       margin-top: 14px;
       border-top: 1px solid var(--line);
       padding-top: 14px;
+    }
+
+    .attachment-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .attachment-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(241, 245, 249, 0.78);
+      border: 1px solid var(--line);
+      font-size: 0.82rem;
+    }
+
+    .attachment-item a {
+      color: #1d4ed8;
+      text-decoration: none;
+      word-break: break-all;
     }
 
     .log-list {
@@ -865,6 +894,23 @@
             <input id="editorEndDate" type="date" />
           </label>
 
+          <label class="editor-field">
+            <span class="field-label">O que foi resolvido</span>
+            <textarea id="completionSummary" placeholder="Descreva o que foi executado, validado e entregue nesta conclusão."></textarea>
+          </label>
+
+          <label class="editor-field">
+            <span class="field-label">Links de evidência</span>
+            <textarea id="completionLinks" placeholder="Um link por linha. Ex.: URL de pasta, dashboard, ticket, página publicada."></textarea>
+          </label>
+
+          <label class="editor-field">
+            <span class="field-label">Anexos</span>
+            <input id="completionFiles" type="file" multiple />
+          </label>
+
+          <div class="attachment-list" id="completionAttachmentList"></div>
+
           <div class="editor-actions">
             <button class="action-btn primary" id="saveTaskChanges">Salvar atualização</button>
             <button class="action-btn" id="markTaskDone">Marcar como concluída</button>
@@ -873,6 +919,53 @@
 
           <div class="editor-hint">
             As alterações são refletidas no Gantt imediatamente e ficam salvas no banco SQLite do servidor.
+          </div>
+
+          <div class="log-panel">
+            <div class="editor-title">Nova Atividade</div>
+            <div class="editor-copy">Inclua novas entregas para complementar o fechamento do projeto.</div>
+            <div class="editor-grid">
+              <label class="editor-field">
+                <span class="field-label">Fase</span>
+                <select id="newTaskPhase"></select>
+              </label>
+              <label class="editor-field">
+                <span class="field-label">Nome da atividade</span>
+                <input id="newTaskName" type="text" placeholder="Ex.: Consolidação final de handoff operacional" />
+              </label>
+              <label class="editor-field">
+                <span class="field-label">Responsável</span>
+                <select id="newTaskOwner"></select>
+              </label>
+              <label class="editor-field">
+                <span class="field-label">Prioridade</span>
+                <select id="newTaskPriority">
+                  <option value="Alta">Alta</option>
+                  <option value="Crítica">Crítica</option>
+                  <option value="Média">Média</option>
+                  <option value="Baixa">Baixa</option>
+                </select>
+              </label>
+              <label class="editor-field">
+                <span class="field-label">Data inicial</span>
+                <input id="newTaskStartDate" type="date" />
+              </label>
+              <label class="editor-field">
+                <span class="field-label">Data final</span>
+                <input id="newTaskEndDate" type="date" />
+              </label>
+              <label class="editor-field">
+                <span class="field-label">Dependência</span>
+                <input id="newTaskDependency" type="text" placeholder="Ex.: T28, T39" />
+              </label>
+              <label class="editor-field">
+                <span class="field-label">Entregável</span>
+                <input id="newTaskDeliverable" type="text" placeholder="Ex.: Pacote final de encerramento" />
+              </label>
+              <div class="editor-actions">
+                <button class="action-btn primary" id="createTaskButton">Adicionar atividade</button>
+              </div>
+            </div>
           </div>
 
           <div class="log-panel">
@@ -969,10 +1062,23 @@
     const editorOwner = document.getElementById("editorOwner");
     const editorStartDate = document.getElementById("editorStartDate");
     const editorEndDate = document.getElementById("editorEndDate");
+    const completionSummary = document.getElementById("completionSummary");
+    const completionLinks = document.getElementById("completionLinks");
+    const completionFiles = document.getElementById("completionFiles");
+    const completionAttachmentList = document.getElementById("completionAttachmentList");
     const editorTaskMeta = document.getElementById("editorTaskMeta");
     const saveTaskChanges = document.getElementById("saveTaskChanges");
     const markTaskDone = document.getElementById("markTaskDone");
     const resetTaskChanges = document.getElementById("resetTaskChanges");
+    const newTaskPhase = document.getElementById("newTaskPhase");
+    const newTaskName = document.getElementById("newTaskName");
+    const newTaskOwner = document.getElementById("newTaskOwner");
+    const newTaskPriority = document.getElementById("newTaskPriority");
+    const newTaskStartDate = document.getElementById("newTaskStartDate");
+    const newTaskEndDate = document.getElementById("newTaskEndDate");
+    const newTaskDependency = document.getElementById("newTaskDependency");
+    const newTaskDeliverable = document.getElementById("newTaskDeliverable");
+    const createTaskButton = document.getElementById("createTaskButton");
     const logList = document.getElementById("logList");
     const logEmpty = document.getElementById("logEmpty");
     const exportLog = document.getElementById("exportLog");
@@ -1063,6 +1169,8 @@
       projectTasks.forEach((task) => {
         if (!task.startDate) task.startDate = toInputDate(weekToDate(task.inicio, "start"));
         if (!task.endDate) task.endDate = toInputDate(weekToDate(task.fim, "end"));
+        if (!Array.isArray(task.completionLinks)) task.completionLinks = [];
+        if (!Array.isArray(task.completionAttachments)) task.completionAttachments = [];
       });
     }
 
@@ -1076,12 +1184,14 @@
       if (!response.ok) throw new Error("Não foi possível carregar o estado salvo.");
       const state = await response.json();
 
+      projectTasks = [...projectTasks, ...(state.customTasks || [])];
       Object.entries(state.overrides || {}).forEach(([taskId, savedTask]) => {
         const current = projectTasks.find((task) => task.id === taskId);
         if (current) Object.assign(current, savedTask);
       });
 
       updateLog = state.logs || [];
+      initializeTaskDates();
     }
 
     async function persistTaskChange(task, action, beforeSnapshot, afterSnapshot) {
@@ -1104,6 +1214,24 @@
         taskName: task.nome,
         before: beforeSnapshot,
         after: afterSnapshot
+      });
+      updateLog = updateLog.slice(0, 120);
+    }
+
+    async function createTaskOnServer(task) {
+      const response = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task })
+      });
+      if (!response.ok) throw new Error("Não foi possível criar a nova atividade.");
+      updateLog.unshift({
+        timestamp: new Date().toISOString(),
+        action: "Nova atividade criada",
+        taskId: task.id,
+        taskName: task.nome,
+        before: null,
+        after: task
       });
       updateLog = updateLog.slice(0, 120);
     }
@@ -1177,10 +1305,66 @@
         `<option value="${owner}">${owner}</option>`
       ).join("");
       if (owners.includes(current)) editorOwner.value = current;
+      newTaskOwner.innerHTML = owners.map((owner) =>
+        `<option value="${owner}">${owner}</option>`
+      ).join("");
+    }
+
+    function buildNewTaskPhaseOptions() {
+      const phaseOptions = getPhaseOptions();
+      const current = newTaskPhase.value;
+      newTaskPhase.innerHTML = phaseOptions.map((phase) =>
+        `<option value="${phase}">${phase}</option>`
+      ).join("");
+      if (phaseOptions.includes(current)) newTaskPhase.value = current;
+    }
+
+    function renderAttachmentList(task) {
+      const attachments = task.completionAttachments || [];
+      if (!attachments.length) {
+        completionAttachmentList.innerHTML = "";
+        return;
+      }
+
+      completionAttachmentList.innerHTML = attachments.map((attachment) => `
+        <div class="attachment-item">
+          <a href="${attachment.url}" target="_blank" rel="noreferrer">${attachment.name}</a>
+          <span>${attachment.uploadedAt ? formatDateTime(new Date(attachment.uploadedAt)) : ""}</span>
+        </div>
+      `).join("");
+    }
+
+    function parseCompletionLinks(value) {
+      return value
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+    }
+
+    async function uploadSelectedFiles(taskId) {
+      if (!completionFiles.files.length) return [];
+      const formData = new FormData();
+      Array.from(completionFiles.files).forEach((file) => {
+        formData.append("files", file);
+      });
+
+      const response = await fetch(`/api/tasks/${taskId}/attachments`, {
+        method: "POST",
+        body: formData
+      });
+
+      if (!response.ok) throw new Error("Não foi possível enviar os anexos.");
+      const result = await response.json();
+      completionFiles.value = "";
+      return result.files || [];
     }
 
     function findTaskById(taskId) {
       return projectTasks.find((task) => task.id === taskId);
+    }
+
+    function getPhaseOptions() {
+      return [...new Set([...phases, ...projectTasks.map((task) => task.fase)])];
     }
 
     function formatDateTime(date) {
@@ -1198,12 +1382,19 @@
       return {
         id: task.id,
         nome: task.nome,
+        fase: task.fase,
         responsavel: task.responsavel,
+        prioridade: task.prioridade,
+        dependencia: task.dependencia,
+        entregavel: task.entregavel,
         status: task.status,
         startDate: task.startDate,
         endDate: task.endDate,
         inicio: task.inicio,
-        fim: task.fim
+        fim: task.fim,
+        completionSummary: task.completionSummary || "",
+        completionLinks: [...(task.completionLinks || [])],
+        completionAttachments: [...(task.completionAttachments || [])]
       };
     }
 
@@ -1254,6 +1445,9 @@
       editorOwner.value = task.responsavel;
       editorStartDate.value = task.startDate;
       editorEndDate.value = task.endDate;
+      completionSummary.value = task.completionSummary || "";
+      completionLinks.value = (task.completionLinks || []).join("\n");
+      renderAttachmentList(task);
       editorTaskMeta.innerHTML = `
         <strong>${task.fase}</strong><br>
         Responsável: ${task.responsavel}<br>
@@ -1262,7 +1456,7 @@
       `;
     }
 
-    function applyTaskEdit(task, status, owner, startDateValue, endDateValue) {
+    function applyTaskEdit(task, status, owner, startDateValue, endDateValue, completionData = {}) {
       const startDate = fromInputDate(startDateValue);
       const endDate = fromInputDate(endDateValue);
       const normalizedEnd = endDate < startDate ? startDate : endDate;
@@ -1273,10 +1467,13 @@
       task.endDate = toInputDate(normalizedEnd);
       task.inicio = dateToWeek(startDate);
       task.fim = Math.max(task.inicio, dateToWeek(normalizedEnd));
+      task.completionSummary = completionData.summary ?? task.completionSummary ?? "";
+      task.completionLinks = completionData.links ?? task.completionLinks ?? [];
+      task.completionAttachments = completionData.attachments ?? task.completionAttachments ?? [];
     }
 
     function setupFilters() {
-      buildSelect(filters.fase, phases, "Todas as fases");
+      buildSelect(filters.fase, getPhaseOptions(), "Todas as fases");
       buildSelect(filters.responsavel, [...new Set(projectTasks.map((task) => task.responsavel))], "Todos os responsáveis");
       buildSelect(filters.status, [...new Set(projectTasks.map((task) => task.status))], "Todos os status");
       buildSelect(filters.prioridade, [...new Set(projectTasks.map((task) => task.prioridade))], "Todas as prioridades");
@@ -1299,6 +1496,9 @@
     function setupEditor() {
       buildTaskEditorOptions();
       buildOwnerEditorOptions();
+      buildNewTaskPhaseOptions();
+      newTaskStartDate.value = toInputDate(projectStart);
+      newTaskEndDate.value = toInputDate(projectStart);
       populateEditor();
 
       editorTask.addEventListener("change", () => {
@@ -1309,8 +1509,13 @@
         const task = findTaskById(editorTask.value);
         if (!task || !editorStartDate.value || !editorEndDate.value) return;
         const beforeSnapshot = cloneTaskSnapshot(task);
-        applyTaskEdit(task, editorStatus.value, editorOwner.value, editorStartDate.value, editorEndDate.value);
         try {
+          const uploadedAttachments = await uploadSelectedFiles(task.id);
+          applyTaskEdit(task, editorStatus.value, editorOwner.value, editorStartDate.value, editorEndDate.value, {
+            summary: completionSummary.value.trim(),
+            links: parseCompletionLinks(completionLinks.value),
+            attachments: [...(task.completionAttachments || []), ...uploadedAttachments]
+          });
           await persistTaskChange(task, "Atualização manual", beforeSnapshot, cloneTaskSnapshot(task));
           render();
           populateEditor(task.id);
@@ -1326,8 +1531,20 @@
         if (!task) return;
         const endDateValue = editorEndDate.value || task.endDate;
         const beforeSnapshot = cloneTaskSnapshot(task);
-        applyTaskEdit(task, "Concluído", editorOwner.value || task.responsavel, editorStartDate.value || task.startDate, endDateValue);
         try {
+          const uploadedAttachments = await uploadSelectedFiles(task.id);
+          const summary = completionSummary.value.trim();
+          const links = parseCompletionLinks(completionLinks.value);
+          const attachments = [...(task.completionAttachments || []), ...uploadedAttachments];
+          if (!summary && !links.length && !attachments.length) {
+            alert("Ao concluir, registre o que foi resolvido ou inclua links/anexos.");
+            return;
+          }
+          applyTaskEdit(task, "Concluído", editorOwner.value || task.responsavel, editorStartDate.value || task.startDate, endDateValue, {
+            summary,
+            links,
+            attachments
+          });
           await persistTaskChange(task, "Marcação como concluída", beforeSnapshot, cloneTaskSnapshot(task));
           render();
           populateEditor(task.id);
@@ -1346,6 +1563,7 @@
           await resetServerState();
           buildTaskEditorOptions();
           buildOwnerEditorOptions();
+          buildNewTaskPhaseOptions();
           render();
           populateEditor(selectedTask);
         } catch (error) {
@@ -1369,6 +1587,51 @@
         try {
           await clearServerLog();
           renderLog();
+        } catch (error) {
+          alert(error.message);
+        }
+      });
+
+      createTaskButton.addEventListener("click", async () => {
+        const nome = newTaskName.value.trim();
+        if (!nome || !newTaskStartDate.value || !newTaskEndDate.value) {
+          alert("Preencha nome, data inicial e data final da nova atividade.");
+          return;
+        }
+
+        const nextId = `N${String(projectTasks.filter((task) => task.id.startsWith("N")).length + 1).padStart(2, "0")}`;
+        const startDate = fromInputDate(newTaskStartDate.value);
+        const endDate = fromInputDate(newTaskEndDate.value);
+        const task = {
+          id: nextId,
+          fase: newTaskPhase.value,
+          nome,
+          responsavel: newTaskOwner.value,
+          inicio: dateToWeek(startDate),
+          fim: Math.max(dateToWeek(startDate), dateToWeek(endDate)),
+          status: "Não iniciado",
+          prioridade: newTaskPriority.value,
+          dependencia: newTaskDependency.value.trim(),
+          entregavel: newTaskDeliverable.value.trim() || "Entregável complementar",
+          startDate: toInputDate(startDate),
+          endDate: toInputDate(endDate),
+          completionSummary: "",
+          completionLinks: [],
+          completionAttachments: [],
+          isCustom: true
+        };
+
+        try {
+          await createTaskOnServer(task);
+          projectTasks.push(task);
+          buildTaskEditorOptions();
+          buildOwnerEditorOptions();
+          buildNewTaskPhaseOptions();
+          render();
+          populateEditor(task.id);
+          newTaskName.value = "";
+          newTaskDependency.value = "";
+          newTaskDeliverable.value = "";
         } catch (error) {
           alert(error.message);
         }
@@ -1631,8 +1894,11 @@
     }
 
     function render() {
+      buildSelect(filters.fase, getPhaseOptions(), "Todas as fases");
       buildSelect(filters.responsavel, [...new Set(projectTasks.map((task) => task.responsavel))], "Todos os responsáveis");
       buildOwnerEditorOptions();
+      buildNewTaskPhaseOptions();
+      buildTaskEditorOptions();
       renderLog();
       renderSummary();
       const filtered = getFilteredTasks();
@@ -1640,7 +1906,7 @@
       createHeaderRow();
 
       const visibleTasks = [];
-      phases.forEach((phase) => {
+      getPhaseOptions().forEach((phase) => {
         const tasks = filtered.filter((task) => task.fase === phase);
         if (!tasks.length) return;
         createPhaseRow(phase, tasks);
