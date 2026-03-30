@@ -1,13 +1,19 @@
-FROM nginx:1.27-alpine
+FROM node:22-bookworm-slim
 
-WORKDIR /usr/share/nginx/html
+WORKDIR /app
 
-RUN rm -f /etc/nginx/conf.d/default.conf \
-  && mkdir -p /app/data
+COPY package.json ./
+RUN npm install --omit=dev
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY index.html /usr/share/nginx/html/index.html
+COPY index.html ./index.html
+COPY server.js ./server.js
 
-EXPOSE 80
+ENV PORT=3000
+ENV DATA_DIR=/app/data
+ENV DATABASE_PATH=/app/data/gantt.sqlite
 
-CMD ["nginx", "-g", "daemon off;"]
+RUN mkdir -p /app/data
+
+EXPOSE 3000
+
+CMD ["npm", "start"]

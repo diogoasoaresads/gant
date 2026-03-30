@@ -872,7 +872,7 @@
           </div>
 
           <div class="editor-hint">
-            As alterações são refletidas no Gantt imediatamente e ficam salvas no navegador desta máquina.
+            As alterações são refletidas no Gantt imediatamente e ficam salvas no banco SQLite do servidor.
           </div>
 
           <div class="log-panel">
@@ -910,7 +910,7 @@
       "FRENTE PARALELA — SITE INSTITUCIONAL RAIZ EDUCAÇÃO"
     ];
 
-    const projectTasks = [
+    let projectTasks = [
       { id: "T01", fase: "FASE 1 — DIAGNÓSTICO", nome: "Mapeamento completo das campanhas ativas por marca, canal e território", responsavel: "Diogo", inicio: 1, fim: 1, status: "Em andamento", prioridade: "Crítica", dependencia: "", entregavel: "Mapa consolidado da operação atual" },
       { id: "T02", fase: "FASE 1 — DIAGNÓSTICO", nome: "Levantamento de investimentos por marca e canal", responsavel: "Analista Pleno", inicio: 1, fim: 1, status: "Em andamento", prioridade: "Alta", dependencia: "T01", entregavel: "Base de investimento por frente" },
       { id: "T03", fase: "FASE 1 — DIAGNÓSTICO", nome: "Auditoria de UTMs, tracking, pixels e eventos", responsavel: "Parceiro Técnico", inicio: 1, fim: 2, status: "Em risco", prioridade: "Crítica", dependencia: "T01", entregavel: "Checklist técnico com correções prioritárias" },
@@ -986,8 +986,6 @@
     };
 
     const collapsedPhases = new Set();
-    const STORAGE_KEY = "raiz-gantt-task-overrides";
-    const LOG_STORAGE_KEY = "raiz-gantt-update-log";
     const originalProjectTasks = JSON.parse(JSON.stringify(projectTasks));
     let updateLog = [];
 
@@ -1068,34 +1066,66 @@
       });
     }
 
-    function saveOverrides() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(projectTasks));
-    }
-
-    function saveLog() {
-      localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(updateLog));
-    }
-
-    function loadOverrides() {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const savedTasks = JSON.parse(raw);
-      savedTasks.forEach((savedTask) => {
-        const current = projectTasks.find((task) => task.id === savedTask.id);
-        if (current) Object.assign(current, savedTask);
-      });
-    }
-
-    function loadLog() {
-      const raw = localStorage.getItem(LOG_STORAGE_KEY);
-      if (!raw) return;
-      updateLog = JSON.parse(raw);
-    }
-
     function restoreOriginalTasks() {
       projectTasks.splice(0, projectTasks.length, ...JSON.parse(JSON.stringify(originalProjectTasks)));
       initializeTaskDates();
-      localStorage.removeItem(STORAGE_KEY);
+    }
+
+    async function loadServerState() {
+      const response = await fetch("/api/state", { cache: "no-store" });
+      if (!response.ok) throw new Error("Não foi possível carregar o estado salvo.");
+      const state = await response.json();
+
+      Object.entries(state.overrides || {}).forEach(([taskId, savedTask]) => {
+        const current = projectTasks.find((task) => task.id === taskId);
+        if (current) Object.assign(current, savedTask);
+      });
+
+      updateLog = state.logs || [];
+    }
+
+    async function persistTaskChange(task, action, beforeSnapshot, afterSnapshot) {
+      const response = await fetch(`/api/tasks/${task.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskName: task.nome,
+          action,
+          before: beforeSnapshot,
+          after: afterSnapshot
+        })
+      });
+
+      if (!response.ok) throw new Error("Não foi possível salvar a alteração no servidor.");
+      updateLog.unshift({
+        timestamp: new Date().toISOString(),
+        action,
+        taskId: task.id,
+        taskName: task.nome,
+        before: beforeSnapshot,
+        after: afterSnapshot
+      });
+      updateLog = updateLog.slice(0, 120);
+    }
+
+    async function resetServerState() {
+      const response = await fetch("/api/reset", { method: "POST" });
+      if (!response.ok) throw new Error("Não foi possível restaurar o planejamento no servidor.");
+      updateLog.unshift({
+        timestamp: new Date().toISOString(),
+        action: "restore",
+        taskId: "",
+        taskName: "Planejamento",
+        before: null,
+        after: null
+      });
+      updateLog = updateLog.slice(0, 120);
+    }
+
+    async function clearServerLog() {
+      const response = await fetch("/api/logs", { method: "DELETE" });
+      if (!response.ok) throw new Error("Não foi possível limpar o log no servidor.");
+      updateLog = [];
     }
 
     function getDisplayStatus(task) {
@@ -1175,20 +1205,6 @@
         inicio: task.inicio,
         fim: task.fim
       };
-    }
-
-    function addLogEntry(action, task, beforeSnapshot, afterSnapshot) {
-      const now = new Date();
-      updateLog.unshift({
-        timestamp: now.toISOString(),
-        action,
-        taskId: task?.id || "",
-        taskName: task?.nome || "Planejamento",
-        before: beforeSnapshot || null,
-        after: afterSnapshot || null
-      });
-      updateLog = updateLog.slice(0, 120);
-      saveLog();
     }
 
     function renderLog() {
@@ -1289,37 +1305,54 @@
         populateEditor(editorTask.value);
       });
 
-      saveTaskChanges.addEventListener("click", () => {
+      saveTaskChanges.addEventListener("click", async () => {
         const task = findTaskById(editorTask.value);
         if (!task || !editorStartDate.value || !editorEndDate.value) return;
         const beforeSnapshot = cloneTaskSnapshot(task);
         applyTaskEdit(task, editorStatus.value, editorOwner.value, editorStartDate.value, editorEndDate.value);
-        saveOverrides();
-        addLogEntry("Atualização manual", task, beforeSnapshot, cloneTaskSnapshot(task));
-        render();
-        populateEditor(task.id);
+        try {
+          await persistTaskChange(task, "Atualização manual", beforeSnapshot, cloneTaskSnapshot(task));
+          render();
+          populateEditor(task.id);
+        } catch (error) {
+          Object.assign(task, beforeSnapshot);
+          alert(error.message);
+          render();
+        }
       });
 
-      markTaskDone.addEventListener("click", () => {
+      markTaskDone.addEventListener("click", async () => {
         const task = findTaskById(editorTask.value);
         if (!task) return;
         const endDateValue = editorEndDate.value || task.endDate;
         const beforeSnapshot = cloneTaskSnapshot(task);
         applyTaskEdit(task, "Concluído", editorOwner.value || task.responsavel, editorStartDate.value || task.startDate, endDateValue);
-        saveOverrides();
-        addLogEntry("Marcação como concluída", task, beforeSnapshot, cloneTaskSnapshot(task));
-        render();
-        populateEditor(task.id);
+        try {
+          await persistTaskChange(task, "Marcação como concluída", beforeSnapshot, cloneTaskSnapshot(task));
+          render();
+          populateEditor(task.id);
+        } catch (error) {
+          Object.assign(task, beforeSnapshot);
+          alert(error.message);
+          render();
+        }
       });
 
-      resetTaskChanges.addEventListener("click", () => {
+      resetTaskChanges.addEventListener("click", async () => {
         const selectedTask = editorTask.value;
-        restoreOriginalTasks();
-        addLogEntry("restore", null, null, null);
-        buildTaskEditorOptions();
-        buildOwnerEditorOptions();
-        render();
-        populateEditor(selectedTask);
+        const snapshot = JSON.parse(JSON.stringify(projectTasks));
+        try {
+          restoreOriginalTasks();
+          await resetServerState();
+          buildTaskEditorOptions();
+          buildOwnerEditorOptions();
+          render();
+          populateEditor(selectedTask);
+        } catch (error) {
+          projectTasks = snapshot;
+          alert(error.message);
+          render();
+        }
       });
 
       exportLog.addEventListener("click", () => {
@@ -1332,10 +1365,13 @@
         URL.revokeObjectURL(url);
       });
 
-      clearLog.addEventListener("click", () => {
-        updateLog = [];
-        saveLog();
-        renderLog();
+      clearLog.addEventListener("click", async () => {
+        try {
+          await clearServerLog();
+          renderLog();
+        } catch (error) {
+          alert(error.message);
+        }
       });
     }
 
@@ -1644,12 +1680,19 @@
     ganttShell.addEventListener("scroll", hideTooltip);
     window.addEventListener("resize", render);
 
-    initializeTaskDates();
-    loadOverrides();
-    loadLog();
-    setupFilters();
-    setupEditor();
-    render();
+    async function bootstrapApp() {
+      initializeTaskDates();
+      try {
+        await loadServerState();
+      } catch (error) {
+        console.error(error);
+      }
+      setupFilters();
+      setupEditor();
+      render();
+    }
+
+    bootstrapApp();
   </script>
 </body>
 </html>
