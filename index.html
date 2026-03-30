@@ -1258,7 +1258,9 @@
 
     function getDisplayStatus(task) {
       const today = getToday();
-      if (today < projectStart) return "Não iniciado";
+      if (today < projectStart) {
+        return task.status === "Concluído" ? "Concluído" : "Não iniciado";
+      }
       return task.status;
     }
 
