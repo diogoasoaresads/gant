@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gantt Executivo | Nova Coordenação de Mídia e Sites</title>
+  <style>
+    :root {
+      --bg: #f3f5f8;
+      --surface: #ffffff;
+      --ink: #162033;
+      --muted: #63708a;
+      --line: #d9e1ec;
+      --shadow: 0 18px 42px rgba(22, 32, 51, 0.08);
+      --status-nao-iniciado: #94a3b8;
+      --status-em-andamento: #2563eb;
+      --status-concluido: #10b981;
+      --status-em-risco: #ef4444;
+      --priority-critica: #7f1d1d;
+      --priority-alta: #b45309;
+      --priority-media: #1d4ed8;
+      --priority-baixa: #475569;
+      --week-width: 74px;
+      --left-width: 540px;
+      --row-height: 58px;
+      --phase-height: 54px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      font-family: "Aptos", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 28%),
+        linear-gradient(180deg, #f8fafc 0%, var(--bg) 100%);
+      color: var(--ink);
+    }
+
+    .app-shell {
+      max-width: 1640px;
+      margin: 0 auto;
+      padding: 28px 28px 40px;
+    }
+
+    .hero,
+    .panel,
+    .summary-card,
+    .legend,
+    .filter-card {
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(217, 225, 236, 0.85);
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      border-radius: 30px;
+      padding: 28px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.8fr) minmax(320px, 1fr);
+      gap: 24px;
+      align-items: stretch;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -10% -40% 42%;
+      height: 240px;
+      background: linear-gradient(120deg, rgba(15, 23, 42, 0.06), rgba(37, 99, 235, 0.12));
+      filter: blur(24px);
+      pointer-events: none;
+    }
+
+    .eyebrow, .meta-label, .summary-label, .field-label {
+      font-size: 0.74rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .eyebrow {
+      font-size: 0.78rem;
+      letter-spacing: 0.16em;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 3.5vw, 3rem);
+      line-height: 1.02;
+      letter-spacing: -0.04em;
+      max-width: 12ch;
+    }
+
+    .hero p {
+      margin: 14px 0 0;
+      font-size: 1rem;
+      line-height: 1.65;
+      color: var(--muted);
+      max-width: 70ch;
+    }
+
+    .hero-meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      align-content: start;
+    }
+
+    .meta-card {
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.92));
+      border: 1px solid var(--line);
+    }
+
+    .meta-label, .summary-label, .field-label { margin-bottom: 8px; }
+
+    .meta-value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .status-chip,
+    .priority-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status-chip::before,
+    .priority-chip::before,
+    .legend-item::before {
+      content: "";
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      display: inline-block;
+      flex: 0 0 auto;
+    }
+
+    .summary-grid {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .summary-card {
+      border-radius: 20px;
+      padding: 18px 18px 20px;
+    }
+
+    .summary-value {
+      font-size: clamp(1.6rem, 2.6vw, 2.2rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .summary-note,
+    .panel-subtitle,
+    .cell-copy,
+    .muted-inline,
+    .footer-note {
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .toolbar {
+      margin-top: 22px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(170px, 1fr));
+      gap: 14px;
+      flex: 1 1 840px;
+    }
+
+    .filter-card {
+      padding: 14px 16px 16px;
+      border-radius: 18px;
+    }
+
+    select, button { font: inherit; }
+
+    select {
+      width: 100%;
+      padding: 11px 13px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    select:focus,
+    button:focus-visible {
+      border-color: #4f7dff;
+      box-shadow: 0 0 0 4px rgba(79, 125, 255, 0.14);
+    }
+
+    .toolbar-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex: 0 0 auto;
+    }
+
+    .action-btn {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, #ffffff, #f5f8fb);
+      color: var(--ink);
+      padding: 12px 16px;
+      border-radius: 14px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+    }
+
+    .action-btn:hover {
+      transform: translateY(-1px);
+      border-color: #c3d2e8;
+    }
+
+    .legend {
+      margin-top: 18px;
+      padding: 14px 18px;
+      border-radius: 18px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 12px 18px;
+      align-items: center;
+    }
+
+    .workspace-grid {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .editor-panel {
+      border-radius: 24px;
+      padding: 18px;
+      position: sticky;
+      top: 18px;
+    }
+
+    .editor-title {
+      font-size: 1rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+
+    .editor-copy {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.55;
+      margin-bottom: 16px;
+    }
+
+    .editor-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .editor-field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .editor-field input,
+    .editor-field select {
+      width: 100%;
+      padding: 11px 13px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--ink);
+      outline: none;
+    }
+
+    .editor-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .action-btn.primary {
+      background: linear-gradient(180deg, #0f172a, #1e293b);
+      color: #fff;
+      border-color: #0f172a;
+    }
+
+    .editor-hint,
+    .editor-task-meta,
+    .log-empty {
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.5;
+    }
+
+    .editor-task-meta {
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(241, 245, 249, 0.78);
+      border: 1px solid var(--line);
+    }
+
+    .log-panel {
+      margin-top: 14px;
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
+    }
+
+    .log-list {
+      display: grid;
+      gap: 10px;
+      max-height: 320px;
+      overflow: auto;
+    }
+
+    .log-item {
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(248, 250, 252, 0.92);
+      border: 1px solid var(--line);
+    }
+
+    .log-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .log-title {
+      font-size: 0.88rem;
+      font-weight: 800;
+      line-height: 1.35;
+      margin-bottom: 4px;
+    }
+
+    .log-body {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .legend-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      align-items: center;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.92rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .panel {
+      margin-top: 18px;
+      border-radius: 28px;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 22px;
+      border-bottom: 1px solid var(--line);
+      gap: 16px;
+    }
+
+    .panel-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .panel-subtitle { font-size: 0.92rem; margin-top: 4px; }
+
+    .gantt-shell {
+      position: relative;
+      overflow: auto;
+      background: linear-gradient(180deg, rgba(248, 250, 252, 0.76), rgba(255, 255, 255, 0.94));
+    }
+
+    .gantt-board {
+      min-width: calc(var(--left-width) + (var(--week-width) * 8));
+      position: relative;
+    }
+
+    .gantt-grid {
+      display: grid;
+      grid-template-columns: var(--left-width) repeat(8, var(--week-width));
+      position: relative;
+      z-index: 2;
+    }
+
+    .header-cell {
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
+      padding: 14px;
+      min-height: 74px;
+      display: flex;
+      align-items: center;
+    }
+
+    .header-left {
+      left: 0;
+      position: sticky;
+      z-index: 6;
+      border-right: 1px solid var(--line);
+    }
+
+    .header-left .columns,
+    .task-left {
+      display: grid;
+      grid-template-columns: 1.8fr 0.95fr 0.8fr 1fr 1.1fr 1.05fr;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .header-left .columns {
+      width: 100%;
+      color: var(--muted);
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 800;
+    }
+
+    .week-head {
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+      gap: 6px;
+    }
+
+    .week-title {
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .week-date {
+      color: var(--muted);
+      font-size: 0.76rem;
+    }
+
+    .phase-row {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: var(--left-width) repeat(8, var(--week-width));
+      min-height: var(--phase-height);
+      background: linear-gradient(180deg, rgba(241, 245, 249, 0.92), rgba(236, 242, 249, 0.72));
+      border-bottom: 1px solid var(--line);
+    }
+
+    .phase-cell-left {
+      position: sticky;
+      left: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 14px;
+      border-right: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(241, 245, 249, 0.96), rgba(236, 242, 249, 0.96));
+    }
+
+    .phase-toggle {
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      border-radius: 10px;
+      font-size: 1rem;
+    }
+
+    .phase-title,
+    .task-name {
+      font-size: 0.94rem;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .phase-meta {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .phase-track {
+      grid-column: 2 / -1;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+    }
+
+    .phase-progress {
+      width: 100%;
+      height: 10px;
+      background: rgba(148, 163, 184, 0.22);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .phase-progress > span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #10b981, #34d399);
+    }
+
+    .task-left,
+    .task-cell {
+      min-height: var(--row-height);
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    .task-left {
+      position: sticky;
+      left: 0;
+      z-index: 4;
+      border-right: 1px solid var(--line);
+      padding: 11px 14px;
+    }
+
+    .task-main { min-width: 0; }
+
+    .task-id {
+      font-size: 0.76rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .task-chip-wrap { display: flex; }
+
+    .task-cell {
+      position: relative;
+      background-image: linear-gradient(180deg, rgba(248, 250, 252, 0.35), rgba(255, 255, 255, 0.75));
+    }
+
+    .task-cell.week-divider,
+    .header-cell.week-divider { border-left: 1px solid rgba(217, 225, 236, 0.7); }
+
+    .bar-layer,
+    .dependency-layer {
+      position: absolute;
+      inset: 74px 0 0 0;
+    }
+
+    .bar-layer { pointer-events: none; z-index: 1; }
+    .dependency-layer { pointer-events: none; z-index: 0; }
+
+    .task-bar {
+      position: absolute;
+      height: 20px;
+      border-radius: 999px;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+      pointer-events: auto;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+      border: 1px solid rgba(255, 255, 255, 0.85);
+    }
+
+    .task-bar:hover {
+      transform: translateY(-1px) scale(1.01);
+      box-shadow: 0 12px 22px rgba(15, 23, 42, 0.16);
+    }
+
+    .task-bar::after {
+      content: attr(data-label);
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 8px;
+      color: white;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      text-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .dependency-layer path {
+      fill: none;
+      stroke: rgba(71, 85, 105, 0.6);
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-dasharray: 5 5;
+    }
+
+    .dependency-layer marker path {
+      fill: rgba(71, 85, 105, 0.72);
+      stroke: none;
+    }
+
+    .empty-state {
+      padding: 34px 24px 42px;
+      text-align: center;
+      color: var(--muted);
+      display: none;
+    }
+
+    .tooltip {
+      position: fixed;
+      z-index: 30;
+      padding: 12px 14px;
+      min-width: 260px;
+      max-width: 320px;
+      border-radius: 14px;
+      background: rgba(15, 23, 42, 0.95);
+      color: #f8fafc;
+      box-shadow: 0 18px 32px rgba(15, 23, 42, 0.26);
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+
+    .tooltip.visible { opacity: 1; transform: translateY(0); }
+    .tooltip-title { font-size: 0.95rem; font-weight: 800; margin-bottom: 8px; line-height: 1.35; }
+
+    .tooltip-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px 12px;
+      font-size: 0.84rem;
+      color: rgba(241, 245, 249, 0.86);
+    }
+
+    .tooltip-grid strong { color: #ffffff; font-weight: 700; }
+    .footer-note { margin-top: 14px; font-size: 0.88rem; padding: 0 4px; }
+
+    [data-status="Não iniciado"] { background: rgba(148, 163, 184, 0.12); color: #475569; }
+    [data-status="Em andamento"] { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
+    [data-status="Concluído"] { background: rgba(16, 185, 129, 0.14); color: #047857; }
+    [data-status="Em risco"] { background: rgba(239, 68, 68, 0.12); color: #b91c1c; }
+    [data-priority="Crítica"] { background: rgba(127, 29, 29, 0.1); color: var(--priority-critica); }
+    [data-priority="Alta"] { background: rgba(180, 83, 9, 0.12); color: var(--priority-alta); }
+    [data-priority="Média"] { background: rgba(29, 78, 216, 0.1); color: var(--priority-media); }
+    [data-priority="Baixa"] { background: rgba(71, 85, 105, 0.12); color: var(--priority-baixa); }
+
+    .status-chip[data-status="Não iniciado"]::before, .legend-item[data-color="Não iniciado"]::before { background: var(--status-nao-iniciado); }
+    .status-chip[data-status="Em andamento"]::before, .legend-item[data-color="Em andamento"]::before { background: var(--status-em-andamento); }
+    .status-chip[data-status="Concluído"]::before, .legend-item[data-color="Concluído"]::before { background: var(--status-concluido); }
+    .status-chip[data-status="Em risco"]::before, .legend-item[data-color="Em risco"]::before { background: var(--status-em-risco); }
+    .priority-chip[data-priority="Crítica"]::before, .legend-item[data-color="Crítica"]::before { background: var(--priority-critica); }
+    .priority-chip[data-priority="Alta"]::before, .legend-item[data-color="Alta"]::before { background: var(--priority-alta); }
+    .priority-chip[data-priority="Média"]::before, .legend-item[data-color="Média"]::before { background: var(--priority-media); }
+    .priority-chip[data-priority="Baixa"]::before, .legend-item[data-color="Baixa"]::before { background: var(--priority-baixa); }
+
+    @media (max-width: 1380px) {
+      :root { --left-width: 500px; --week-width: 68px; }
+      .summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .filters { grid-template-columns: repeat(2, minmax(180px, 1fr)); }
+    }
+
+    @media (max-width: 1080px) {
+      .app-shell { padding: 20px; }
+      .hero { grid-template-columns: 1fr; }
+      .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .workspace-grid { grid-template-columns: 1fr; }
+      .editor-panel { position: static; }
+    }
+
+    @media (max-width: 760px) {
+      .summary-grid, .filters { grid-template-columns: 1fr; }
+      .toolbar-actions { width: 100%; }
+      .action-btn { flex: 1 1 auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Projeto Estratégico • Raiz Educação</div>
+        <h1>NOVA COORDENAÇÃO DE MÍDIA E SITES</h1>
+        <p>
+          Visual executivo para acompanhar o cronograma integrado de mídia, sites, dados e operação.
+          A meta é consolidar a nova estrutura, padronizar a gestão e deixar a operação preparada até 25/05 para a captação de junho,
+          com foco em leitura de CPV, governança e capacidade de execução.
+        </p>
+      </div>
+      <div class="hero-meta">
+        <div class="meta-card">
+          <div class="meta-label">Objetivo Macro</div>
+          <div class="meta-value">Estruturar a operação de mídia e sites até a preparação da captação</div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-label">Prazo Final</div>
+          <div class="meta-value">25 mai 2026 • Semana 8</div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-label">Data de Referência</div>
+          <div class="meta-value" id="referenceDateText">—</div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-label">Status Geral</div>
+          <div class="meta-value"><span id="generalStatusChip" class="status-chip" data-status="Em andamento">Em andamento</span></div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-label">KPI Principal</div>
+          <div class="meta-value">CPV • custo por visita qualificada</div>
+        </div>
+        <div class="meta-card" style="grid-column: 1 / -1;">
+          <div class="meta-label">Meta Executiva</div>
+          <div class="meta-value" id="timelineNarrative">Operação pronta até 25/05 para entrar em captação em junho, com governança, infraestrutura digital e leitura integrada de performance</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="summary-grid" id="summaryGrid"></section>
+
+    <section class="toolbar">
+      <div class="filters">
+        <div class="filter-card">
+          <div class="field-label">Filtrar por fase</div>
+          <select id="filterPhase"></select>
+        </div>
+        <div class="filter-card">
+          <div class="field-label">Filtrar por responsável</div>
+          <select id="filterOwner"></select>
+        </div>
+        <div class="filter-card">
+          <div class="field-label">Filtrar por status</div>
+          <select id="filterStatus"></select>
+        </div>
+        <div class="filter-card">
+          <div class="field-label">Filtrar por prioridade</div>
+          <select id="filterPriority"></select>
+        </div>
+      </div>
+      <div class="toolbar-actions">
+        <button class="action-btn" id="toggleAllPhases">Recolher fases</button>
+        <button class="action-btn" id="clearFilters">Limpar filtros</button>
+      </div>
+    </section>
+
+    <section class="legend">
+      <div class="legend-group">
+        <span class="legend-item" data-color="Não iniciado">Não iniciado</span>
+        <span class="legend-item" data-color="Em andamento">Em andamento</span>
+        <span class="legend-item" data-color="Concluído">Concluído</span>
+        <span class="legend-item" data-color="Em risco">Em risco</span>
+      </div>
+      <div class="legend-group">
+        <span class="legend-item" data-color="Crítica">Prioridade crítica</span>
+        <span class="legend-item" data-color="Alta">Prioridade alta</span>
+        <span class="legend-item" data-color="Média">Prioridade média</span>
+        <span class="legend-item" data-color="Baixa">Prioridade baixa</span>
+      </div>
+    </section>
+
+    <section class="workspace-grid">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Cronograma Executivo e Operacional</div>
+            <div class="panel-subtitle">8 semanas • visão consolidada por fase, tarefa, dependência e entregável</div>
+          </div>
+          <div class="muted-inline" id="resultsInfo">0 tarefas visíveis</div>
+        </div>
+
+        <div class="gantt-shell" id="ganttShell">
+          <div class="gantt-board" id="ganttBoard">
+            <div class="gantt-grid" id="ganttGrid"></div>
+            <svg class="dependency-layer" id="dependencyLayer" preserveAspectRatio="none"></svg>
+            <div class="bar-layer" id="barLayer"></div>
+          </div>
+          <div class="empty-state" id="emptyState">
+            Nenhuma tarefa encontrada com os filtros atuais.
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel editor-panel">
+        <div class="editor-title">Atualização Rápida</div>
+        <div class="editor-copy">Selecione uma tarefa para alterar status e datas sem editar o código manualmente.</div>
+
+        <div class="editor-grid">
+          <label class="editor-field">
+            <span class="field-label">Tarefa</span>
+            <select id="editorTask"></select>
+          </label>
+
+          <div class="editor-task-meta" id="editorTaskMeta">Selecione uma tarefa para ver os detalhes atuais.</div>
+
+          <label class="editor-field">
+            <span class="field-label">Status</span>
+            <select id="editorStatus">
+              <option value="Não iniciado">Não iniciado</option>
+              <option value="Em andamento">Em andamento</option>
+              <option value="Concluído">Concluído</option>
+              <option value="Em risco">Em risco</option>
+            </select>
+          </label>
+
+          <label class="editor-field">
+            <span class="field-label">Responsável</span>
+            <select id="editorOwner"></select>
+          </label>
+
+          <label class="editor-field">
+            <span class="field-label">Data inicial</span>
+            <input id="editorStartDate" type="date" />
+          </label>
+
+          <label class="editor-field">
+            <span class="field-label">Data final</span>
+            <input id="editorEndDate" type="date" />
+          </label>
+
+          <div class="editor-actions">
+            <button class="action-btn primary" id="saveTaskChanges">Salvar atualização</button>
+            <button class="action-btn" id="markTaskDone">Marcar como concluída</button>
+            <button class="action-btn" id="resetTaskChanges">Restaurar planejamento original</button>
+          </div>
+
+          <div class="editor-hint">
+            As alterações são refletidas no Gantt imediatamente e ficam salvas no navegador desta máquina.
+          </div>
+
+          <div class="log-panel">
+            <div class="editor-title">Log de Atualizações</div>
+            <div class="editor-copy">Histórico local das alterações feitas nesta página, com data e hora do computador.</div>
+            <div class="editor-actions">
+              <button class="action-btn" id="exportLog">Exportar log em JSON</button>
+              <button class="action-btn" id="clearLog">Limpar log</button>
+            </div>
+            <div class="log-list" id="logList"></div>
+            <div class="log-empty" id="logEmpty">Nenhuma atualização registrada ainda.</div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <div class="footer-note">
+      Os dados estão mockados no próprio JavaScript e podem ser ajustados facilmente no array <strong>`projectTasks`</strong>,
+      inclusive semanas, responsáveis, dependências, prioridades e entregáveis.
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script>
+    const TOTAL_WEEKS = 8;
+    const projectStart = new Date("2026-04-06T00:00:00");
+
+    const phases = [
+      "FASE 1 — DIAGNÓSTICO",
+      "FASE 2 — PADRONIZAÇÃO",
+      "FASE 3 — ESTRUTURAÇÃO DIGITAL",
+      "FASE 4 — INTEGRAÇÃO OOH + DIGITAL",
+      "FASE 5 — DADOS E PERFORMANCE",
+      "FRENTE PARALELA — SITE INSTITUCIONAL RAIZ EDUCAÇÃO"
+    ];
+
+    const projectTasks = [
+      { id: "T01", fase: "FASE 1 — DIAGNÓSTICO", nome: "Mapeamento completo das campanhas ativas por marca, canal e território", responsavel: "Diogo", inicio: 1, fim: 1, status: "Em andamento", prioridade: "Crítica", dependencia: "", entregavel: "Mapa consolidado da operação atual" },
+      { id: "T02", fase: "FASE 1 — DIAGNÓSTICO", nome: "Levantamento de investimentos por marca e canal", responsavel: "Analista Pleno", inicio: 1, fim: 1, status: "Em andamento", prioridade: "Alta", dependencia: "T01", entregavel: "Base de investimento por frente" },
+      { id: "T03", fase: "FASE 1 — DIAGNÓSTICO", nome: "Auditoria de UTMs, tracking, pixels e eventos", responsavel: "Parceiro Técnico", inicio: 1, fim: 2, status: "Em risco", prioridade: "Crítica", dependencia: "T01", entregavel: "Checklist técnico com correções prioritárias" },
+      { id: "T04", fase: "FASE 1 — DIAGNÓSTICO", nome: "Diagnóstico de sites e landing pages", responsavel: "Especialista de Sites", inicio: 1, fim: 2, status: "Em andamento", prioridade: "Alta", dependencia: "T03", entregavel: "Avaliação funcional e estrutural das páginas" },
+      { id: "T05", fase: "FASE 1 — DIAGNÓSTICO", nome: "Levantamento do baseline de CPL e CPV", responsavel: "Analista Júnior", inicio: 2, fim: 2, status: "Não iniciado", prioridade: "Alta", dependencia: "T02", entregavel: "Baseline histórico de eficiência" },
+      { id: "T06", fase: "FASE 1 — DIAGNÓSTICO", nome: "Consolidação dos gaps operacionais", responsavel: "Diogo", inicio: 2, fim: 3, status: "Não iniciado", prioridade: "Crítica", dependencia: "T03, T04, T05", entregavel: "Documento executivo de gaps e prioridades" },
+      { id: "T07", fase: "FASE 2 — PADRONIZAÇÃO", nome: "Criação do playbook de mídia", responsavel: "Diogo", inicio: 3, fim: 4, status: "Não iniciado", prioridade: "Crítica", dependencia: "T06", entregavel: "Playbook operacional versão 1" },
+      { id: "T08", fase: "FASE 2 — PADRONIZAÇÃO", nome: "Padronização de nomenclatura de campanhas", responsavel: "Analista Pleno", inicio: 3, fim: 3, status: "Não iniciado", prioridade: "Alta", dependencia: "T06", entregavel: "Padrão único de naming" },
+      { id: "T09", fase: "FASE 2 — PADRONIZAÇÃO", nome: "Padronização de UTMs", responsavel: "Parceiro Técnico", inicio: 3, fim: 3, status: "Não iniciado", prioridade: "Crítica", dependencia: "T03", entregavel: "Matriz oficial de UTMs" },
+      { id: "T10", fase: "FASE 2 — PADRONIZAÇÃO", nome: "Definição de templates de relatório por marca", responsavel: "Analista Júnior", inicio: 4, fim: 4, status: "Não iniciado", prioridade: "Média", dependencia: "T05", entregavel: "Templates padronizados de acompanhamento" },
+      { id: "T11", fase: "FASE 2 — PADRONIZAÇÃO", nome: "Estruturação da biblioteca de criativos", responsavel: "Agência", inicio: 4, fim: 5, status: "Não iniciado", prioridade: "Média", dependencia: "T07", entregavel: "Biblioteca indexada por marca e campanha" },
+      { id: "T12", fase: "FASE 2 — PADRONIZAÇÃO", nome: "Definição dos rituais de governança com equipe e agências", responsavel: "Diogo", inicio: 4, fim: 4, status: "Não iniciado", prioridade: "Alta", dependencia: "T07", entregavel: "Cadência oficial de reuniões e alçadas" },
+      { id: "T13", fase: "FASE 3 — ESTRUTURAÇÃO DIGITAL", nome: "Reestruturação da arquitetura das landing pages", responsavel: "Especialista de Sites", inicio: 3, fim: 4, status: "Não iniciado", prioridade: "Crítica", dependencia: "T04, T06", entregavel: "Nova arquitetura de LPs" },
+      { id: "T14", fase: "FASE 3 — ESTRUTURAÇÃO DIGITAL", nome: "Criação de páginas por unidade", responsavel: "Agência", inicio: 4, fim: 6, status: "Não iniciado", prioridade: "Alta", dependencia: "T13", entregavel: "Páginas por unidade publicáveis" },
+      { id: "T15", fase: "FASE 3 — ESTRUTURAÇÃO DIGITAL", nome: "Criação de páginas por segmento educacional", responsavel: "Agência", inicio: 4, fim: 6, status: "Não iniciado", prioridade: "Alta", dependencia: "T13", entregavel: "Páginas por segmento estruturadas" },
+      { id: "T16", fase: "FASE 3 — ESTRUTURAÇÃO DIGITAL", nome: "Otimização de UX e performance técnica", responsavel: "Especialista de Sites", inicio: 5, fim: 7, status: "Não iniciado", prioridade: "Crítica", dependencia: "T13", entregavel: "Melhorias de velocidade e usabilidade" },
+      { id: "T17", fase: "FASE 3 — ESTRUTURAÇÃO DIGITAL", nome: "Ajustes de formulários e integrações", responsavel: "Parceiro Técnico", inicio: 6, fim: 7, status: "Não iniciado", prioridade: "Crítica", dependencia: "T14, T15", entregavel: "Fluxos de captura integrados" },
+      { id: "T18", fase: "FASE 3 — ESTRUTURAÇÃO DIGITAL", nome: "Implementação de melhorias de conversão", responsavel: "Analista Pleno", inicio: 7, fim: 8, status: "Não iniciado", prioridade: "Alta", dependencia: "T16, T17", entregavel: "Pacote de otimização de conversão" },
+      { id: "T19", fase: "FASE 4 — INTEGRAÇÃO OOH + DIGITAL", nome: "Mapeamento de hotspots e regiões prioritárias", responsavel: "Analista Júnior", inicio: 4, fim: 5, status: "Não iniciado", prioridade: "Alta", dependencia: "T02", entregavel: "Mapa territorial prioritário" },
+      { id: "T20", fase: "FASE 4 — INTEGRAÇÃO OOH + DIGITAL", nome: "Cruzamento de territórios de OOH com campanhas digitais", responsavel: "Diogo", inicio: 5, fim: 5, status: "Não iniciado", prioridade: "Crítica", dependencia: "T19", entregavel: "Modelo de sincronização territorial" },
+      { id: "T21", fase: "FASE 4 — INTEGRAÇÃO OOH + DIGITAL", nome: "Ativação de campanhas sincronizadas por região", responsavel: "Agência", inicio: 6, fim: 7, status: "Não iniciado", prioridade: "Alta", dependencia: "T20, T14, T15", entregavel: "Campanhas regionais sincronizadas" },
+      { id: "T22", fase: "FASE 4 — INTEGRAÇÃO OOH + DIGITAL", nome: "Monitoramento de impacto cruzado entre OOH e digital", responsavel: "Analista Pleno", inicio: 7, fim: 8, status: "Não iniciado", prioridade: "Média", dependencia: "T21", entregavel: "Leitura de impacto incremental" },
+      { id: "T23", fase: "FASE 4 — INTEGRAÇÃO OOH + DIGITAL", nome: "Ajustes de verba por praça com base em resposta local", responsavel: "Diogo", inicio: 8, fim: 8, status: "Não iniciado", prioridade: "Alta", dependencia: "T22", entregavel: "Nova alocação de verba por praça" },
+      { id: "T24", fase: "FASE 5 — DADOS E PERFORMANCE", nome: "Criação de dashboard consolidado por marca", responsavel: "Parceiro Técnico", inicio: 4, fim: 5, status: "Não iniciado", prioridade: "Crítica", dependencia: "T10, T12", entregavel: "Dashboard central de mídia e sites" },
+      { id: "T25", fase: "FASE 5 — DADOS E PERFORMANCE", nome: "Visão por canal, campanha, território e criativo", responsavel: "Analista Júnior", inicio: 5, fim: 6, status: "Não iniciado", prioridade: "Alta", dependencia: "T24", entregavel: "Recortes analíticos operacionais" },
+      { id: "T26", fase: "FASE 5 — DADOS E PERFORMANCE", nome: "Estruturação de leitura de CPV", responsavel: "Diogo", inicio: 5, fim: 6, status: "Não iniciado", prioridade: "Crítica", dependencia: "T24", entregavel: "Leitura padrão de CPV por marca" },
+      { id: "T27", fase: "FASE 5 — DADOS E PERFORMANCE", nome: "Monitoramento de visitas por lead e por canal", responsavel: "Analista Pleno", inicio: 6, fim: 7, status: "Não iniciado", prioridade: "Alta", dependencia: "T24, T17", entregavel: "Indicador de visitas por lead" },
+      { id: "T28", fase: "FASE 5 — DADOS E PERFORMANCE", nome: "Definição de rotina de análise semanal", responsavel: "Diogo", inicio: 7, fim: 7, status: "Não iniciado", prioridade: "Alta", dependencia: "T25, T26", entregavel: "Ritual semanal de performance" },
+      { id: "T29", fase: "FASE 5 — DADOS E PERFORMANCE", nome: "Base para evolução futura de CAC e ROI", responsavel: "Analista Pleno", inicio: 8, fim: 8, status: "Não iniciado", prioridade: "Média", dependencia: "T27, T28", entregavel: "Estrutura de evolução analítica" },
+      { id: "T30", fase: "FRENTE PARALELA — SITE INSTITUCIONAL RAIZ EDUCAÇÃO", nome: "Definição do papel estratégico do site institucional", responsavel: "Diogo", inicio: 1, fim: 1, status: "Concluído", prioridade: "Alta", dependencia: "", entregavel: "Direcionamento do papel institucional/B2B" },
+      { id: "T31", fase: "FRENTE PARALELA — SITE INSTITUCIONAL RAIZ EDUCAÇÃO", nome: "Revisão da arquitetura da informação", responsavel: "Especialista de Sites", inicio: 1, fim: 2, status: "Em andamento", prioridade: "Alta", dependencia: "T30", entregavel: "Nova arquitetura do site institucional" },
+      { id: "T32", fase: "FRENTE PARALELA — SITE INSTITUCIONAL RAIZ EDUCAÇÃO", nome: "Ajuste de navegação e hierarquia visual", responsavel: "Especialista de Sites", inicio: 2, fim: 3, status: "Em andamento", prioridade: "Alta", dependencia: "T31", entregavel: "Navegação e hierarquia revistas" },
+      { id: "T33", fase: "FRENTE PARALELA — SITE INSTITUCIONAL RAIZ EDUCAÇÃO", nome: "Aplicação do layout aprovado", responsavel: "Agência", inicio: 3, fim: 5, status: "Não iniciado", prioridade: "Crítica", dependencia: "T32", entregavel: "Layout novo implementado" },
+      { id: "T34", fase: "FRENTE PARALELA — SITE INSTITUCIONAL RAIZ EDUCAÇÃO", nome: "Revisão de copy institucional", responsavel: "Analista Pleno", inicio: 3, fim: 4, status: "Não iniciado", prioridade: "Média", dependencia: "T31", entregavel: "Copy institucional revisada" },
+      { id: "T35", fase: "FRENTE PARALELA — SITE INSTITUCIONAL RAIZ EDUCAÇÃO", nome: "Inserção de prova social e autoridade", responsavel: "Analista Júnior", inicio: 4, fim: 5, status: "Não iniciado", prioridade: "Média", dependencia: "T34", entregavel: "Elementos de credibilidade publicados" },
+      { id: "T36", fase: "FRENTE PARALELA — SITE INSTITUCIONAL RAIZ EDUCAÇÃO", nome: "SEO institucional", responsavel: "Especialista de Sites", inicio: 5, fim: 6, status: "Não iniciado", prioridade: "Média", dependencia: "T33, T34", entregavel: "Fundação de SEO institucional" },
+      { id: "T37", fase: "FRENTE PARALELA — SITE INSTITUCIONAL RAIZ EDUCAÇÃO", nome: "Performance técnica", responsavel: "Parceiro Técnico", inicio: 5, fim: 6, status: "Não iniciado", prioridade: "Alta", dependencia: "T33", entregavel: "Ajustes de performance validados" },
+      { id: "T38", fase: "FRENTE PARALELA — SITE INSTITUCIONAL RAIZ EDUCAÇÃO", nome: "QA final", responsavel: "Especialista de Sites", inicio: 7, fim: 7, status: "Não iniciado", prioridade: "Alta", dependencia: "T35, T36, T37", entregavel: "Checklist final aprovado" },
+      { id: "T39", fase: "FRENTE PARALELA — SITE INSTITUCIONAL RAIZ EDUCAÇÃO", nome: "Go live", responsavel: "Agência", inicio: 8, fim: 8, status: "Não iniciado", prioridade: "Crítica", dependencia: "T38", entregavel: "Site institucional publicado" }
+    ];
+
+    const summaryGrid = document.getElementById("summaryGrid");
+    const ganttGrid = document.getElementById("ganttGrid");
+    const barLayer = document.getElementById("barLayer");
+    const dependencyLayer = document.getElementById("dependencyLayer");
+    const resultsInfo = document.getElementById("resultsInfo");
+    const emptyState = document.getElementById("emptyState");
+    const tooltip = document.getElementById("tooltip");
+    const generalStatusChip = document.getElementById("generalStatusChip");
+    const ganttShell = document.getElementById("ganttShell");
+    const ganttBoard = document.getElementById("ganttBoard");
+    const referenceDateText = document.getElementById("referenceDateText");
+    const timelineNarrative = document.getElementById("timelineNarrative");
+    const editorTask = document.getElementById("editorTask");
+    const editorStatus = document.getElementById("editorStatus");
+    const editorOwner = document.getElementById("editorOwner");
+    const editorStartDate = document.getElementById("editorStartDate");
+    const editorEndDate = document.getElementById("editorEndDate");
+    const editorTaskMeta = document.getElementById("editorTaskMeta");
+    const saveTaskChanges = document.getElementById("saveTaskChanges");
+    const markTaskDone = document.getElementById("markTaskDone");
+    const resetTaskChanges = document.getElementById("resetTaskChanges");
+    const logList = document.getElementById("logList");
+    const logEmpty = document.getElementById("logEmpty");
+    const exportLog = document.getElementById("exportLog");
+    const clearLog = document.getElementById("clearLog");
+
+    const filters = {
+      fase: document.getElementById("filterPhase"),
+      responsavel: document.getElementById("filterOwner"),
+      status: document.getElementById("filterStatus"),
+      prioridade: document.getElementById("filterPriority")
+    };
+
+    const collapsedPhases = new Set();
+    const STORAGE_KEY = "raiz-gantt-task-overrides";
+    const LOG_STORAGE_KEY = "raiz-gantt-update-log";
+    const originalProjectTasks = JSON.parse(JSON.stringify(projectTasks));
+    let updateLog = [];
+
+    function getCssVar(name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    const statusColors = {
+      "Não iniciado": getCssVar("--status-nao-iniciado"),
+      "Em andamento": getCssVar("--status-em-andamento"),
+      "Concluído": getCssVar("--status-concluido"),
+      "Em risco": getCssVar("--status-em-risco")
+    };
+
+    function addDays(date, days) {
+      const copy = new Date(date);
+      copy.setDate(copy.getDate() + days);
+      return copy;
+    }
+
+    function startOfDay(date) {
+      const copy = new Date(date);
+      copy.setHours(0, 0, 0, 0);
+      return copy;
+    }
+
+    function getToday() {
+      return startOfDay(new Date());
+    }
+
+    function getProjectEnd() {
+      return addDays(projectStart, (TOTAL_WEEKS * 7) - 1);
+    }
+
+    function formatShortDate(date) {
+      return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(date).replace(".", "");
+    }
+
+    function formatLongDate(date) {
+      return new Intl.DateTimeFormat("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+      }).format(date);
+    }
+
+    function toInputDate(date) {
+      const safe = startOfDay(date);
+      const year = safe.getFullYear();
+      const month = `${safe.getMonth() + 1}`.padStart(2, "0");
+      const day = `${safe.getDate()}`.padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function fromInputDate(value) {
+      return startOfDay(new Date(`${value}T00:00:00`));
+    }
+
+    function clampWeek(value) {
+      return Math.min(TOTAL_WEEKS, Math.max(1, value));
+    }
+
+    function weekToDate(week, boundary) {
+      const base = addDays(projectStart, (week - 1) * 7);
+      return boundary === "end" ? addDays(base, 6) : base;
+    }
+
+    function dateToWeek(date) {
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const diffDays = Math.floor((startOfDay(date) - projectStart) / msPerDay);
+      return clampWeek(Math.floor(diffDays / 7) + 1);
+    }
+
+    function initializeTaskDates() {
+      projectTasks.forEach((task) => {
+        if (!task.startDate) task.startDate = toInputDate(weekToDate(task.inicio, "start"));
+        if (!task.endDate) task.endDate = toInputDate(weekToDate(task.fim, "end"));
+      });
+    }
+
+    function saveOverrides() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(projectTasks));
+    }
+
+    function saveLog() {
+      localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(updateLog));
+    }
+
+    function loadOverrides() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const savedTasks = JSON.parse(raw);
+      savedTasks.forEach((savedTask) => {
+        const current = projectTasks.find((task) => task.id === savedTask.id);
+        if (current) Object.assign(current, savedTask);
+      });
+    }
+
+    function loadLog() {
+      const raw = localStorage.getItem(LOG_STORAGE_KEY);
+      if (!raw) return;
+      updateLog = JSON.parse(raw);
+    }
+
+    function restoreOriginalTasks() {
+      projectTasks.splice(0, projectTasks.length, ...JSON.parse(JSON.stringify(originalProjectTasks)));
+      initializeTaskDates();
+      localStorage.removeItem(STORAGE_KEY);
+    }
+
+    function getDisplayStatus(task) {
+      const today = getToday();
+      if (today < projectStart) return "Não iniciado";
+      return task.status;
+    }
+
+    function weekLabel(weekNumber) {
+      const start = addDays(projectStart, (weekNumber - 1) * 7);
+      return { week: `S${weekNumber}`, date: formatShortDate(start) };
+    }
+
+    function normalizeDependencies(value) {
+      if (!value) return [];
+      return value.split(",").map((item) => item.trim()).filter(Boolean);
+    }
+
+    function buildSelect(selectEl, values, label) {
+      const current = selectEl.value || "Todos";
+      selectEl.innerHTML = "";
+      const allOption = document.createElement("option");
+      allOption.value = "Todos";
+      allOption.textContent = label;
+      selectEl.appendChild(allOption);
+
+      values.forEach((value) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        selectEl.appendChild(option);
+      });
+
+      selectEl.value = values.includes(current) ? current : "Todos";
+    }
+
+    function buildTaskEditorOptions() {
+      const current = editorTask.value;
+      editorTask.innerHTML = projectTasks.map((task) =>
+        `<option value="${task.id}">${task.id} • ${task.nome}</option>`
+      ).join("");
+      editorTask.value = projectTasks.some((task) => task.id === current) ? current : projectTasks[0].id;
+    }
+
+    function buildOwnerEditorOptions() {
+      const owners = [...new Set(projectTasks.map((task) => task.responsavel))];
+      const current = editorOwner.value;
+      editorOwner.innerHTML = owners.map((owner) =>
+        `<option value="${owner}">${owner}</option>`
+      ).join("");
+      if (owners.includes(current)) editorOwner.value = current;
+    }
+
+    function findTaskById(taskId) {
+      return projectTasks.find((task) => task.id === taskId);
+    }
+
+    function formatDateTime(date) {
+      return new Intl.DateTimeFormat("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }).format(date);
+    }
+
+    function cloneTaskSnapshot(task) {
+      return {
+        id: task.id,
+        nome: task.nome,
+        responsavel: task.responsavel,
+        status: task.status,
+        startDate: task.startDate,
+        endDate: task.endDate,
+        inicio: task.inicio,
+        fim: task.fim
+      };
+    }
+
+    function addLogEntry(action, task, beforeSnapshot, afterSnapshot) {
+      const now = new Date();
+      updateLog.unshift({
+        timestamp: now.toISOString(),
+        action,
+        taskId: task?.id || "",
+        taskName: task?.nome || "Planejamento",
+        before: beforeSnapshot || null,
+        after: afterSnapshot || null
+      });
+      updateLog = updateLog.slice(0, 120);
+      saveLog();
+    }
+
+    function renderLog() {
+      if (!updateLog.length) {
+        logList.innerHTML = "";
+        logEmpty.style.display = "block";
+        return;
+      }
+
+      logEmpty.style.display = "none";
+      logList.innerHTML = updateLog.map((entry) => {
+        const before = entry.before;
+        const after = entry.after;
+        const details = [];
+
+        if (before && after) {
+          if (before.status !== after.status) details.push(`Status: ${before.status} → ${after.status}`);
+          if (before.responsavel !== after.responsavel) details.push(`Responsável: ${before.responsavel} → ${after.responsavel}`);
+          if (before.startDate !== after.startDate || before.endDate !== after.endDate) {
+            details.push(`Datas: ${formatLongDate(fromInputDate(before.startDate))} até ${formatLongDate(fromInputDate(before.endDate))} → ${formatLongDate(fromInputDate(after.startDate))} até ${formatLongDate(fromInputDate(after.endDate))}`);
+          }
+        }
+
+        if (!details.length && entry.action === "restore") {
+          details.push("Planejamento restaurado para o estado original.");
+        }
+
+        return `
+          <article class="log-item">
+            <div class="log-head">
+              <span>${entry.action}</span>
+              <span>${formatDateTime(new Date(entry.timestamp))}</span>
+            </div>
+            <div class="log-title">${entry.taskId ? `${entry.taskId} • ` : ""}${entry.taskName}</div>
+            <div class="log-body">${details.join("<br>") || "Alteração registrada."}</div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function populateEditor(taskId = editorTask.value) {
+      const task = findTaskById(taskId);
+      if (!task) return;
+      editorTask.value = task.id;
+      editorStatus.value = task.status;
+      buildOwnerEditorOptions();
+      editorOwner.value = task.responsavel;
+      editorStartDate.value = task.startDate;
+      editorEndDate.value = task.endDate;
+      editorTaskMeta.innerHTML = `
+        <strong>${task.fase}</strong><br>
+        Responsável: ${task.responsavel}<br>
+        Janela atual: ${formatLongDate(fromInputDate(task.startDate))} até ${formatLongDate(fromInputDate(task.endDate))}<br>
+        Semanas: S${task.inicio} a S${task.fim}
+      `;
+    }
+
+    function applyTaskEdit(task, status, owner, startDateValue, endDateValue) {
+      const startDate = fromInputDate(startDateValue);
+      const endDate = fromInputDate(endDateValue);
+      const normalizedEnd = endDate < startDate ? startDate : endDate;
+
+      task.status = status;
+      task.responsavel = owner;
+      task.startDate = toInputDate(startDate);
+      task.endDate = toInputDate(normalizedEnd);
+      task.inicio = dateToWeek(startDate);
+      task.fim = Math.max(task.inicio, dateToWeek(normalizedEnd));
+    }
+
+    function setupFilters() {
+      buildSelect(filters.fase, phases, "Todas as fases");
+      buildSelect(filters.responsavel, [...new Set(projectTasks.map((task) => task.responsavel))], "Todos os responsáveis");
+      buildSelect(filters.status, [...new Set(projectTasks.map((task) => task.status))], "Todos os status");
+      buildSelect(filters.prioridade, [...new Set(projectTasks.map((task) => task.prioridade))], "Todas as prioridades");
+
+      Object.values(filters).forEach((select) => select.addEventListener("change", render));
+
+      document.getElementById("clearFilters").addEventListener("click", () => {
+        Object.values(filters).forEach((select) => { select.value = "Todos"; });
+        render();
+      });
+
+      document.getElementById("toggleAllPhases").addEventListener("click", () => {
+        const shouldCollapse = collapsedPhases.size !== phases.length;
+        collapsedPhases.clear();
+        if (shouldCollapse) phases.forEach((phase) => collapsedPhases.add(phase));
+        render();
+      });
+    }
+
+    function setupEditor() {
+      buildTaskEditorOptions();
+      buildOwnerEditorOptions();
+      populateEditor();
+
+      editorTask.addEventListener("change", () => {
+        populateEditor(editorTask.value);
+      });
+
+      saveTaskChanges.addEventListener("click", () => {
+        const task = findTaskById(editorTask.value);
+        if (!task || !editorStartDate.value || !editorEndDate.value) return;
+        const beforeSnapshot = cloneTaskSnapshot(task);
+        applyTaskEdit(task, editorStatus.value, editorOwner.value, editorStartDate.value, editorEndDate.value);
+        saveOverrides();
+        addLogEntry("Atualização manual", task, beforeSnapshot, cloneTaskSnapshot(task));
+        render();
+        populateEditor(task.id);
+      });
+
+      markTaskDone.addEventListener("click", () => {
+        const task = findTaskById(editorTask.value);
+        if (!task) return;
+        const endDateValue = editorEndDate.value || task.endDate;
+        const beforeSnapshot = cloneTaskSnapshot(task);
+        applyTaskEdit(task, "Concluído", editorOwner.value || task.responsavel, editorStartDate.value || task.startDate, endDateValue);
+        saveOverrides();
+        addLogEntry("Marcação como concluída", task, beforeSnapshot, cloneTaskSnapshot(task));
+        render();
+        populateEditor(task.id);
+      });
+
+      resetTaskChanges.addEventListener("click", () => {
+        const selectedTask = editorTask.value;
+        restoreOriginalTasks();
+        addLogEntry("restore", null, null, null);
+        buildTaskEditorOptions();
+        buildOwnerEditorOptions();
+        render();
+        populateEditor(selectedTask);
+      });
+
+      exportLog.addEventListener("click", () => {
+        const blob = new Blob([JSON.stringify(updateLog, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "raiz-gantt-update-log.json";
+        link.click();
+        URL.revokeObjectURL(url);
+      });
+
+      clearLog.addEventListener("click", () => {
+        updateLog = [];
+        saveLog();
+        renderLog();
+      });
+    }
+
+    function getFilteredTasks() {
+      return projectTasks.filter((task) => {
+        if (filters.fase.value !== "Todos" && task.fase !== filters.fase.value) return false;
+        if (filters.responsavel.value !== "Todos" && task.responsavel !== filters.responsavel.value) return false;
+        if (filters.status.value !== "Todos" && getDisplayStatus(task) !== filters.status.value) return false;
+        if (filters.prioridade.value !== "Todos" && task.prioridade !== filters.prioridade.value) return false;
+        return true;
+      });
+    }
+
+    function calculateSummary() {
+      const total = projectTasks.length;
+      const concluded = projectTasks.filter((task) => getDisplayStatus(task) === "Concluído").length;
+      const inProgress = projectTasks.filter((task) => getDisplayStatus(task) === "Em andamento").length;
+      const atRisk = projectTasks.filter((task) => getDisplayStatus(task) === "Em risco").length;
+      const completedWeight = projectTasks.reduce((acc, task) => {
+        const displayStatus = getDisplayStatus(task);
+        if (displayStatus === "Concluído") return acc + 1;
+        if (displayStatus === "Em andamento") return acc + 0.55;
+        if (displayStatus === "Em risco") return acc + 0.25;
+        return acc;
+      }, 0);
+      const percentage = Math.round((completedWeight / total) * 100);
+      return { total, concluded, inProgress, atRisk, percentage };
+    }
+
+    function renderSummary() {
+      const summary = calculateSummary();
+      const today = getToday();
+      const projectEnd = getProjectEnd();
+      const beforeStart = today < projectStart;
+      const afterEnd = today > projectEnd;
+      const cards = [
+        { label: "Total de tarefas", value: summary.total, note: "Escopo consolidado do projeto" },
+        { label: "Tarefas concluídas", value: summary.concluded, note: "Entregas já finalizadas" },
+        { label: "Em andamento", value: summary.inProgress, note: "Frentes abertas neste momento" },
+        { label: "Em risco", value: summary.atRisk, note: "Itens que exigem atenção de gestão" },
+        { label: "Percentual geral", value: `${summary.percentage}%`, note: "Avanço ponderado do projeto" }
+      ];
+
+      summaryGrid.innerHTML = cards.map((card) => `
+        <article class="summary-card">
+          <div class="summary-label">${card.label}</div>
+          <div class="summary-value">${card.value}</div>
+          <div class="summary-note">${card.note}</div>
+        </article>
+      `).join("");
+
+      generalStatusChip.textContent =
+        beforeStart ? "Não iniciado" :
+        afterEnd && summary.percentage < 100 ? "Em risco" :
+        summary.atRisk > 0 ? "Em risco" :
+        summary.percentage >= 70 ? "Concluído" :
+        summary.inProgress > 0 ? "Em andamento" : "Não iniciado";
+
+      generalStatusChip.dataset.status = generalStatusChip.textContent;
+      referenceDateText.textContent = `${formatLongDate(today)} • data atual do computador`;
+
+      if (beforeStart) {
+        timelineNarrative.textContent = `Projeto ainda não iniciado. A operação começa em ${formatLongDate(projectStart)} e deve estar pronta até ${formatLongDate(projectEnd)} para a captação de junho.`;
+      } else if (afterEnd) {
+        timelineNarrative.textContent = `Janela planejada encerrada em ${formatLongDate(projectEnd)}. A leitura abaixo mostra o status consolidado do que foi concluído e do que ainda exige atenção.`;
+      } else {
+        timelineNarrative.textContent = `Projeto em execução entre ${formatLongDate(projectStart)} e ${formatLongDate(projectEnd)}, com objetivo de deixar a operação pronta para a captação de junho.`;
+      }
+    }
+
+    function phaseSummary(tasks) {
+      const total = tasks.length || 1;
+      const progress = Math.round(tasks.reduce((acc, task) => {
+        const displayStatus = getDisplayStatus(task);
+        if (displayStatus === "Concluído") return acc + 1;
+        if (displayStatus === "Em andamento") return acc + 0.55;
+        if (displayStatus === "Em risco") return acc + 0.25;
+        return acc;
+      }, 0) / total * 100);
+      return {
+        progress,
+        critical: tasks.filter((task) => task.prioridade === "Crítica").length,
+        risk: tasks.filter((task) => getDisplayStatus(task) === "Em risco").length
+      };
+    }
+
+    function createHeaderRow() {
+      const leftHeader = document.createElement("div");
+      leftHeader.className = "header-cell header-left";
+      leftHeader.innerHTML = `
+        <div class="columns">
+          <span>Tarefa</span>
+          <span>Responsável</span>
+          <span>Prioridade</span>
+          <span>Dependência</span>
+          <span>Entregável</span>
+          <span>Status</span>
+        </div>
+      `;
+      ganttGrid.appendChild(leftHeader);
+
+      for (let week = 1; week <= TOTAL_WEEKS; week += 1) {
+        const { week: weekText, date } = weekLabel(week);
+        const head = document.createElement("div");
+        head.className = `header-cell week-head ${week > 1 ? "week-divider" : ""}`;
+        head.innerHTML = `<div class="week-title">${weekText}</div><div class="week-date">${date}</div>`;
+        ganttGrid.appendChild(head);
+      }
+    }
+
+    function createPhaseRow(phase, tasks) {
+      const collapsed = collapsedPhases.has(phase);
+      const meta = phaseSummary(tasks);
+      const row = document.createElement("div");
+      row.className = "phase-row";
+      row.innerHTML = `
+        <div class="phase-cell-left">
+          <button class="action-btn phase-toggle" data-phase-toggle="${phase}" aria-label="Alternar fase">${collapsed ? "+" : "−"}</button>
+          <div>
+            <div class="phase-title">${phase}</div>
+            <div class="phase-meta">
+              <span>${tasks.length} tarefas</span>
+              <span>${meta.progress}% concluído</span>
+              <span>${meta.critical} críticas</span>
+              <span>${meta.risk} em risco</span>
+            </div>
+          </div>
+        </div>
+        <div class="phase-track">
+          <div class="phase-progress"><span style="width: ${meta.progress}%;"></span></div>
+        </div>
+      `;
+      ganttGrid.appendChild(row);
+    }
+
+    function createTaskRow(task) {
+      const displayStatus = getDisplayStatus(task);
+      const left = document.createElement("div");
+      left.className = "task-left";
+      left.dataset.taskId = task.id;
+      left.innerHTML = `
+        <div class="task-main">
+          <div class="task-name">${task.nome}</div>
+          <div class="task-id">${task.id}</div>
+        </div>
+        <div class="cell-copy">${task.responsavel}</div>
+        <div class="task-chip-wrap"><span class="priority-chip" data-priority="${task.prioridade}">${task.prioridade}</span></div>
+        <div class="cell-copy">${task.dependencia || "—"}</div>
+        <div class="cell-copy">${task.entregavel}</div>
+        <div class="task-chip-wrap"><span class="status-chip" data-status="${displayStatus}">${displayStatus}</span></div>
+      `;
+      ganttGrid.appendChild(left);
+
+      for (let week = 1; week <= TOTAL_WEEKS; week += 1) {
+        const cell = document.createElement("div");
+        cell.className = `task-cell ${week > 1 ? "week-divider" : ""}`;
+        cell.dataset.taskId = task.id;
+        cell.dataset.week = week;
+        ganttGrid.appendChild(cell);
+      }
+    }
+
+    function leftWidthPx() {
+      return parseFloat(getCssVar("--left-width"));
+    }
+
+    function weekWidthPx() {
+      return parseFloat(getCssVar("--week-width"));
+    }
+
+    function renderBars(tasks, taskTopMap) {
+      barLayer.innerHTML = "";
+      barLayer.style.height = `${Math.max(0, ganttGrid.offsetHeight - 74)}px`;
+
+      tasks.forEach((task) => {
+        if (!taskTopMap.has(task.id)) return;
+        const displayStatus = getDisplayStatus(task);
+        const bar = document.createElement("div");
+        bar.className = "task-bar";
+        bar.dataset.taskId = task.id;
+        bar.dataset.label = task.id;
+        bar.style.background = `linear-gradient(90deg, ${statusColors[displayStatus]}, ${statusColors[displayStatus]}dd)`;
+        bar.style.left = `calc(var(--left-width) + ${(task.inicio - 1)} * var(--week-width) + 6px)`;
+        bar.style.top = `${taskTopMap.get(task.id) + 19}px`;
+        bar.style.width = `calc(${task.fim - task.inicio + 1} * var(--week-width) - 12px)`;
+        bar.addEventListener("mouseenter", (event) => showTooltip(event, task));
+        bar.addEventListener("mousemove", moveTooltip);
+        bar.addEventListener("mouseleave", hideTooltip);
+        barLayer.appendChild(bar);
+      });
+    }
+
+    function renderDependencies(tasks, taskTopMap) {
+      dependencyLayer.innerHTML = `
+        <defs>
+          <marker id="arrowHead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z"></path>
+          </marker>
+        </defs>
+      `;
+
+      const width = ganttBoard.offsetWidth;
+      const height = Math.max(0, ganttGrid.offsetHeight - 74);
+      dependencyLayer.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      dependencyLayer.setAttribute("width", width);
+      dependencyLayer.setAttribute("height", height);
+
+      tasks.forEach((task) => {
+        const dependencies = normalizeDependencies(task.dependencia);
+        if (!dependencies.length || !taskTopMap.has(task.id)) return;
+
+        dependencies.forEach((depId) => {
+          const sourceTask = projectTasks.find((item) => item.id === depId);
+          if (!sourceTask || !taskTopMap.has(sourceTask.id)) return;
+          const startX = leftWidthPx() + (sourceTask.fim * weekWidthPx()) - 12;
+          const endX = leftWidthPx() + ((task.inicio - 1) * weekWidthPx()) + 6;
+          const startY = taskTopMap.get(sourceTask.id) + 29;
+          const endY = taskTopMap.get(task.id) + 29;
+          const midX = startX + Math.max(20, (endX - startX) / 2);
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute("d", `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`);
+          path.setAttribute("marker-end", "url(#arrowHead)");
+          dependencyLayer.appendChild(path);
+        });
+      });
+    }
+
+    function showTooltip(event, task) {
+      const displayStatus = getDisplayStatus(task);
+      tooltip.innerHTML = `
+        <div class="tooltip-title">${task.nome}</div>
+        <div class="tooltip-grid">
+          <strong>Fase</strong><span>${task.fase}</span>
+          <strong>Responsável</strong><span>${task.responsavel}</span>
+          <strong>Janela</strong><span>Semana ${task.inicio} a ${task.fim}</span>
+          <strong>Datas</strong><span>${formatLongDate(fromInputDate(task.startDate))} até ${formatLongDate(fromInputDate(task.endDate))}</span>
+          <strong>Status</strong><span>${displayStatus}</span>
+          <strong>Prioridade</strong><span>${task.prioridade}</span>
+          <strong>Dependência</strong><span>${task.dependencia || "Sem dependência"}</span>
+          <strong>Entregável</strong><span>${task.entregavel}</span>
+        </div>
+      `;
+      tooltip.classList.add("visible");
+      moveTooltip(event);
+    }
+
+    function moveTooltip(event) {
+      const offset = 18;
+      const maxLeft = window.innerWidth - tooltip.offsetWidth - 12;
+      const maxTop = window.innerHeight - tooltip.offsetHeight - 12;
+      tooltip.style.left = `${Math.min(event.clientX + offset, maxLeft)}px`;
+      tooltip.style.top = `${Math.min(event.clientY + offset, maxTop)}px`;
+    }
+
+    function hideTooltip() {
+      tooltip.classList.remove("visible");
+    }
+
+    function render() {
+      buildSelect(filters.responsavel, [...new Set(projectTasks.map((task) => task.responsavel))], "Todos os responsáveis");
+      buildOwnerEditorOptions();
+      renderLog();
+      renderSummary();
+      const filtered = getFilteredTasks();
+      ganttGrid.innerHTML = "";
+      createHeaderRow();
+
+      const visibleTasks = [];
+      phases.forEach((phase) => {
+        const tasks = filtered.filter((task) => task.fase === phase);
+        if (!tasks.length) return;
+        createPhaseRow(phase, tasks);
+        if (!collapsedPhases.has(phase)) {
+          tasks.forEach((task) => {
+            visibleTasks.push(task);
+            createTaskRow(task);
+          });
+        }
+      });
+
+      document.querySelectorAll("[data-phase-toggle]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const phase = button.dataset.phaseToggle;
+          if (collapsedPhases.has(phase)) collapsedPhases.delete(phase);
+          else collapsedPhases.add(phase);
+          render();
+        });
+      });
+
+      const taskTopMap = new Map();
+      visibleTasks.forEach((task) => {
+        const refCell = ganttGrid.querySelector(`.task-left[data-task-id="${task.id}"]`);
+        if (refCell) taskTopMap.set(task.id, refCell.offsetTop - 74);
+      });
+
+      renderBars(visibleTasks, taskTopMap);
+      renderDependencies(visibleTasks, taskTopMap);
+
+      emptyState.style.display = filtered.length ? "none" : "block";
+      resultsInfo.textContent = `${filtered.length} tarefas visíveis`;
+      document.getElementById("toggleAllPhases").textContent =
+        collapsedPhases.size === phases.length ? "Expandir fases" : "Recolher fases";
+      populateEditor(editorTask.value);
+    }
+
+    ganttShell.addEventListener("scroll", hideTooltip);
+    window.addEventListener("resize", render);
+
+    initializeTaskDates();
+    loadOverrides();
+    loadLog();
+    setupFilters();
+    setupEditor();
+    render();
+  </script>
+</body>
+</html>
